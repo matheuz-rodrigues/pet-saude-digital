@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { montarInscricao, q } from '../db.js'
+import { dadosComprovante, montarInscricao, q } from '../db.js'
 import { asaasAtivo, tokenWebhookValido } from '../lib/asaas.js'
 import { enviarComprovante } from '../lib/email.js'
 
@@ -28,17 +28,7 @@ webhook.post('/asaas', async (req, res, next) => {
       const [insc] = await q('SELECT * FROM inscricoes WHERE asaas_payment_id=?', [payment.id])
       if (insc && insc.status !== 'pago' && insc.status !== 'cancelada') {
         await q('UPDATE inscricoes SET status="pago" WHERE id=?', [insc.id])
-        const completa = await montarInscricao(insc.participante_id)
-        if (completa) {
-          await enviarComprovante({
-            nome: completa.nome,
-            numero: completa.numero,
-            valor: completa.valor,
-            status: 'pago',
-            atividades: completa.atividades.map((a) => a.titulo),
-            email: completa.email,
-          })
-        }
+        await enviarComprovante(await dadosComprovante(insc.id))
       }
     }
 
@@ -53,19 +43,14 @@ webhook.post('/dev/simular-pix', async (req, res, next) => {
   try {
     if (asaasAtivo()) return res.status(403).json({ erro: 'Desligado quando o Asaas está configurado.' })
     if (!req.session?.participanteId) return res.status(401).json({ erro: 'Entre na sua conta.' })
-    const completa = await montarInscricao(req.session.participanteId)
-    if (!completa) return res.status(404).json({ erro: 'Inscrição não encontrada.' })
-    await q('UPDATE inscricoes SET status="pago" WHERE id=?', [completa.id])
-    const paga = await montarInscricao(req.session.participanteId)
-    await enviarComprovante({
-      nome: paga.nome,
-      numero: paga.numero,
-      valor: paga.valor,
-      status: 'pago',
-      atividades: paga.atividades.map((a) => a.titulo),
-      email: paga.email,
-    })
-    res.json(paga)
+    const insc = await montarInscricao(Number(req.body.inscricaoId))
+    if (!insc || insc.participanteId !== req.session.participanteId) {
+      return res.status(404).json({ erro: 'Inscrição não encontrada.' })
+    }
+    if (insc.status !== 'aguardando_pix') return res.status(400).json({ erro: 'Esta inscrição não espera Pix.' })
+    await q('UPDATE inscricoes SET status="pago" WHERE id=?', [insc.id])
+    await enviarComprovante(await dadosComprovante(insc.id))
+    res.json(await montarInscricao(insc.id))
   } catch (err) {
     next(err)
   }

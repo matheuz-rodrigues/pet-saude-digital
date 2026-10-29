@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react'
  * Informa se a tela esta abaixo do ponto de corte informado.
  *
  * Usado onde a diferenca entre celular e desktop nao e so de estilo, mas de
- * estrutura — por exemplo, a programacao mostra um turno por vez no celular
- * e os dois lado a lado no desktop. Isso nao da para resolver so com CSS.
+ * estrutura — por exemplo, a sanfona comeca fechada no celular e com o
+ * primeiro item aberto no desktop. Isso nao da para resolver so com CSS.
  */
 export function useTelaPequena(consulta = '(max-width: 1023px)') {
   const [pequena, setPequena] = useState(() =>

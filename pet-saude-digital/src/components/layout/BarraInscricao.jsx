@@ -1,14 +1,18 @@
 import { motion } from 'framer-motion'
 import { useInscricao } from '../../contexto/Inscricao'
-import { useTaxa } from '../../hooks/useTaxa'
+import { useEventosComInscricao } from '../../hooks/useEventosComInscricao'
+import { rotuloTaxa } from '../../lib/dinheiro'
 
 /**
  * Barra fixa de inscricao — visivel apenas no celular.
- * Abre o assistente no proprio site, em tela cheia.
+ * Abre o assistente no proprio site, em tela cheia. Sem evento com
+ * inscricao aberta, a barra nao aparece.
  */
 export default function BarraInscricao() {
   const { abrir } = useInscricao()
-  const taxa = useTaxa()
+  const { eventos: abertos } = useEventosComInscricao()
+  if (!abertos.length) return null
+  const unico = abertos.length === 1 ? abertos[0] : null
 
   return (
     <motion.div
@@ -17,14 +21,16 @@ export default function BarraInscricao() {
       transition={{ delay: 0.5, type: 'spring', stiffness: 260, damping: 28 }}
       className="z-30 flex items-stretch border-t border-white/10 bg-pet-ink sm:hidden"
     >
-      <div className="flex flex-1 flex-col justify-center px-4 py-2.5 leading-tight">
-        <span className="label text-white/40">Inscrição</span>
-        <span className="text-[15px] font-bold tracking-display text-white">{taxa}</span>
+      <div className="flex min-w-0 flex-1 flex-col justify-center px-4 py-2.5 leading-tight">
+        <span className="label truncate text-white/40">{unico ? unico.nome : 'Inscrições abertas'}</span>
+        <span className="text-[15px] font-bold tracking-display text-white">
+          {unico ? rotuloTaxa(unico.taxa) : `${abertos.length} eventos`}
+        </span>
       </div>
 
       <button
         type="button"
-        onClick={abrir}
+        onClick={() => abrir(unico?.id)}
         className="flex items-center gap-2 bg-pet-orange px-5 text-[14px] font-semibold tracking-tight text-white active:brightness-95"
       >
         Inscrever-se

@@ -52,7 +52,7 @@ export const painelAba = {
   }),
 }
 
-/** Expansao vertical de detalhes (linhas da programacao). */
+/** Expansao vertical de detalhes (itens da sanfona). */
 export const expandir = {
   fechado: { height: 0, opacity: 0 },
   aberto: {

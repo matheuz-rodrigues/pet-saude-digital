@@ -10,7 +10,7 @@ import puppeteer from 'puppeteer-core'
 const CHROME =
   process.env.CHROME_PATH || 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'
 const BASE = process.argv[2] || 'http://localhost:4173'
-const ABAS = ['sobre', 'programacao', 'palestrantes', 'submissao', 'local', 'apoiadores', 'contato']
+const ABAS = ['inicio', 'eventos', 'noticias', 'contato']
 
 // alturas reais de aparelhos comuns
 const TELAS = [

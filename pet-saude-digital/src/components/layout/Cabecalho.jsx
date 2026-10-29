@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { evento } from '../../data/evento'
+import { programa } from '../../data/programa'
 import { suave } from '../../lib/motion'
 import { useInscricao } from '../../contexto/Inscricao'
 import { useSessao } from '../../contexto/Sessao'
-import { useTaxa } from '../../hooks/useTaxa'
+import { useEventosComInscricao } from '../../hooks/useEventosComInscricao'
+import { rotuloTaxa } from '../../lib/dinheiro'
 
-/** Marca do evento: quadrado laranja + tipografia, sem arquivo de logo. */
+/** Marca do programa: quadrado laranja + tipografia, sem arquivo de logo. */
 function Marca() {
   return (
     <div className="flex items-center gap-3">
@@ -22,32 +23,10 @@ function Marca() {
 
       <div className="min-w-0 leading-none">
         <p className="truncate text-[15px] font-bold tracking-display text-white sm:text-[17px]">
-          PET Saúde Digital
+          {programa.nome}
         </p>
-        <p className="label mt-1 truncate text-white/55">
-          {evento.sigla} · I Simpósio · {evento.edicao}
-        </p>
+        <p className="label mt-1 truncate text-white/55">{programa.sigla} · Eventos e notícias</p>
       </div>
-    </div>
-  )
-}
-
-/** Ficha de dados do evento exibida no topo em telas largas. */
-function FichaTopo() {
-  const dados = [
-    [evento.dataCurta, evento.edicao],
-    ['08h — 17h', 'presencial'],
-    ['Ananindeua', 'Pará'],
-  ]
-
-  return (
-    <div className="hidden items-stretch lg:flex">
-      {dados.map(([principal, apoio], i) => (
-        <div key={i} className="border-l border-white/15 px-5 leading-none">
-          <p className="text-[13px] font-semibold tracking-tight text-white">{principal}</p>
-          <p className="label mt-1.5 text-white/45">{apoio}</p>
-        </div>
-      ))}
     </div>
   )
 }
@@ -55,7 +34,10 @@ function FichaTopo() {
 export default function Cabecalho() {
   const { abrir } = useInscricao()
   const { participante } = useSessao()
-  const taxa = useTaxa()
+  const { eventos: abertos } = useEventosComInscricao()
+  // Com um evento so, o botao ja abre nele e mostra a taxa. Com varios, a
+  // pessoa escolhe o evento dentro do assistente.
+  const unico = abertos.length === 1 ? abertos[0] : null
 
   return (
     <header className="relative z-20 bg-pet-navy">
@@ -63,14 +45,12 @@ export default function Cabecalho() {
         <Marca />
 
         <div className="flex items-center gap-3 sm:gap-4">
-          <FichaTopo />
-
           {participante ? (
             <Link
               to="/minha-inscricao"
               className="text-[12.5px] font-semibold text-white/80 hover:text-white"
             >
-              Minha inscrição
+              Minhas inscrições
             </Link>
           ) : (
             <Link
@@ -81,21 +61,23 @@ export default function Cabecalho() {
             </Link>
           )}
 
-          <motion.button
-            type="button"
-            onClick={abrir}
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.97 }}
-            className="hidden items-center gap-2.5 bg-pet-orange px-4 py-2.5 sm:inline-flex"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-pulse-ring bg-white" />
-              <span className="relative inline-flex h-2 w-2 bg-white" />
-            </span>
-            <span className="text-[13px] font-semibold tracking-tight text-white">
-              Inscrever-se · {taxa}
-            </span>
-          </motion.button>
+          {abertos.length > 0 && (
+            <motion.button
+              type="button"
+              onClick={() => abrir(unico?.id)}
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              className="hidden items-center gap-2.5 bg-pet-orange px-4 py-2.5 sm:inline-flex"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-pulse-ring bg-white" />
+                <span className="relative inline-flex h-2 w-2 bg-white" />
+              </span>
+              <span className="text-[13px] font-semibold tracking-tight text-white">
+                {unico ? `Inscrever-se · ${rotuloTaxa(unico.taxa)}` : 'Inscrever-se'}
+              </span>
+            </motion.button>
+          )}
         </div>
       </div>
     </header>

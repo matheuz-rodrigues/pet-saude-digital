@@ -3,28 +3,15 @@ import { Link } from 'react-router-dom'
 import { api, mascaraCpf, mascaraTel, rotuloStatus } from '../lib/api'
 import { useSessao } from '../contexto/Sessao'
 import Campo, { classeInput } from '../components/inscricao/Campo'
+import GestaoEventos from '../components/admin/GestaoEventos'
+import GestaoNoticias from '../components/admin/GestaoNoticias'
 
 const ABAS = [
   { id: 'inscritos', rotulo: 'Inscritos' },
   { id: 'gratuidades', rotulo: 'Gratuidade' },
-  { id: 'atividades', rotulo: 'Atividades' },
+  { id: 'eventos', rotulo: 'Eventos' },
+  { id: 'noticias', rotulo: 'Notícias' },
   { id: 'config', rotulo: 'Config' },
-]
-
-const DIAS = [
-  { id: 'segunda', rotulo: 'Segunda-feira', data: '19/10' },
-  { id: 'terca', rotulo: 'Terça-feira', data: '20/10' },
-  { id: 'quarta', rotulo: 'Quarta-feira', data: '21/10' },
-  { id: 'quinta', rotulo: 'Quinta-feira', data: '22/10' },
-  { id: 'sexta', rotulo: 'Sexta-feira', data: '23/10' },
-]
-
-const TIPOS = [
-  { id: 'palestra', rotulo: 'Palestra' },
-  { id: 'mesa', rotulo: 'Mesa' },
-  { id: 'minicurso', rotulo: 'Minicurso' },
-  { id: 'oficina', rotulo: 'Oficina' },
-  { id: 'projetos', rotulo: 'Projetos' },
 ]
 
 export default function Admin() {
@@ -39,6 +26,9 @@ export default function Admin() {
   const [filtro, setFiltro] = useState('')
   const [cfg, setCfg] = useState(null)
   const [detalhe, setDetalhe] = useState(null)
+  // Filtro por evento: lista e numeros mostram so as inscricoes dele.
+  const [eventos, setEventos] = useState([])
+  const [eventoFiltro, setEventoFiltro] = useState('')
 
   async function entrar(e) {
     e.preventDefault()
@@ -52,10 +42,10 @@ export default function Admin() {
   }
 
   async function carregarLista(pagina = 1) {
-    const qs = new URLSearchParams({ q: busca, status: filtro, pagina })
+    const qs = new URLSearchParams({ q: busca, status: filtro, evento: eventoFiltro, pagina })
     const data = await api(`/admin/inscritos?${qs}`)
     setLista(data)
-    setResumo(await api('/admin/resumo'))
+    setResumo(await api(`/admin/resumo?evento=${eventoFiltro}`))
   }
 
   async function carregarCfg() {
@@ -70,7 +60,10 @@ export default function Admin() {
       carregarLista(1).catch(() => {})
     }
     carregarCfg().catch(() => {})
-    api('/admin/resumo').then(setResumo).catch(() => {})
+    api(`/admin/resumo?evento=${eventoFiltro}`).then(setResumo).catch(() => {})
+    api('/admin/eventos')
+      .then((d) => setEventos(d.eventos.filter((e) => e.tipo === 'completo')))
+      .catch(() => {})
   }, [admin, aba])
 
   if (!admin) {
@@ -147,6 +140,12 @@ export default function Admin() {
                 onChange={(e) => setBusca(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && carregarLista(1)}
               />
+              <select className={`${classeInput} max-w-[220px]`} value={eventoFiltro} onChange={(e) => setEventoFiltro(e.target.value)}>
+                <option value="">Evento: todos</option>
+                {eventos.map((e) => (
+                  <option key={e.id} value={e.id}>{e.nome}</option>
+                ))}
+              </select>
               <select className={`${classeInput} max-w-[180px]`} value={filtro} onChange={(e) => setFiltro(e.target.value)}>
                 <option value="">Status: todos</option>
                 {Object.entries(rotuloStatus).map(([k, v]) => (
@@ -162,7 +161,7 @@ export default function Admin() {
               <table className="w-full text-left text-[12.5px]">
                 <thead className="bg-pet-ice text-[10px] uppercase tracking-label text-pet-navy/50">
                   <tr>
-                    {['Nº', 'Nome', 'E-mail', 'CPF', 'Telefone', 'Gênero', 'Palestras', 'Pagamento', 'Ações'].map((h) => (
+                    {['Nº', 'Nome', 'Evento', 'E-mail', 'CPF', 'Telefone', 'Atividades', 'Situação', 'Ações'].map((h) => (
                       <th key={h} className="px-2 py-2">{h}</th>
                     ))}
                   </tr>
@@ -172,10 +171,10 @@ export default function Admin() {
                     <tr key={i.id} className="border-t border-pet-navy/8">
                       <td className="px-2 py-2 font-semibold">{i.numero}</td>
                       <td className="px-2 py-2">{i.nome}</td>
+                      <td className="px-2 py-2">{i.eventoNome}</td>
                       <td className="px-2 py-2">{i.email}</td>
                       <td className="px-2 py-2">{mascaraCpf(i.cpf)}</td>
                       <td className="px-2 py-2">{mascaraTel(i.telefone)}</td>
-                      <td className="px-2 py-2">{i.genero}</td>
                       <td className="px-2 py-2">{i.atividades.length}</td>
                       <td className="px-2 py-2">{rotuloStatus[i.status]}</td>
                       <td className="px-2 py-2">
@@ -197,7 +196,7 @@ export default function Admin() {
                 >
                   <div>
                     <p className="font-semibold text-pet-deep">{i.nome}</p>
-                    <p className="text-[12px] text-pet-navy/60">{i.email}</p>
+                    <p className="text-[12px] text-pet-navy/60">{i.eventoNome}</p>
                   </div>
                   <span className="text-[11px] uppercase text-pet-navy/70">{rotuloStatus[i.status]}</span>
                 </button>
@@ -215,6 +214,7 @@ export default function Admin() {
             {(filtro === 'aguardando_gratuidade' ? lista.inscritos : gratuidades).map((i) => (
               <div key={i.id} className="border border-pet-navy/10 bg-white p-4">
                 <p className="font-semibold text-pet-deep">{i.nome} · {i.numero}</p>
+                <p className="text-[12px] text-pet-navy/50">{i.eventoNome}</p>
                 <p className="mt-1 text-[13px] text-pet-navy/70">{i.gratuidadeMotivo}</p>
                 <div className="mt-3 flex gap-2">
                   <button
@@ -243,78 +243,9 @@ export default function Admin() {
           </div>
         )}
 
-        {aba === 'atividades' && cfg && (
-          <div className="space-y-6">
-            {DIAS.map((dia) => {
-              const doDia = cfg.atividades.filter((a) => a.diaId === dia.id)
-              return (
-                <section key={dia.id}>
-                  <h2 className="mb-2 text-[14px] font-semibold text-pet-deep">
-                    {dia.rotulo} <span className="font-normal text-pet-navy/45">{dia.data}</span>
-                  </h2>
-                  <div className="space-y-2">
-                    {doDia.length === 0 && (
-                      <p className="text-[13px] text-pet-navy/50">Nenhuma atividade neste dia.</p>
-                    )}
-                    {doDia.map((a) => (
-                      <form
-                        key={a.id}
-                        className="grid items-end gap-2 border border-pet-navy/10 bg-white p-3 sm:grid-cols-[1fr_90px_90px_80px_80px]"
-                        onSubmit={async (e) => {
-                          e.preventDefault()
-                          setErro('')
-                          const fd = new FormData(e.target)
-                          try {
-                            await api(`/admin/atividades/${a.id}`, {
-                              method: 'PUT',
-                              body: { precoExtra: fd.get('preco'), vagas: fd.get('vagas') },
-                            })
-                            carregarCfg()
-                          } catch (err) {
-                            setErro(err.message)
-                          }
-                        }}
-                      >
-                        <p className="text-[13px] text-pet-navy">
-                          {a.titulo}
-                          <span className="block text-[11px] uppercase text-pet-navy/45">
-                            {a.tipo} · {a.ocupadas} ocupadas{a.vagas != null ? ` / ${a.vagas}` : ''}
-                          </span>
-                        </p>
-                        <label className="text-[11px] text-pet-navy/50">
-                          Extra
-                          <input name="preco" defaultValue={a.precoExtra} className={classeInput} />
-                        </label>
-                        <label className="text-[11px] text-pet-navy/50">
-                          Vagas
-                          <input name="vagas" defaultValue={a.vagas ?? ''} className={classeInput} />
-                        </label>
-                        <button className="bg-pet-navy py-2 text-[12px] font-semibold text-white">Salvar</button>
-                        <button
-                          type="button"
-                          className="border border-pet-orange py-2 text-[12px] font-semibold text-pet-orange"
-                          onClick={async () => {
-                            if (!confirm(`Apagar "${a.titulo}"?`)) return
-                            setErro('')
-                            try {
-                              await api(`/admin/atividades/${a.id}`, { method: 'DELETE' })
-                              carregarCfg()
-                            } catch (err) {
-                              setErro(err.message)
-                            }
-                          }}
-                        >
-                          Apagar
-                        </button>
-                      </form>
-                    ))}
-                  </div>
-                  <NovaAtividade diaId={dia.id} aoCriar={carregarCfg} />
-                </section>
-              )
-            })}
-          </div>
-        )}
+        {aba === 'eventos' && <GestaoEventos />}
+
+        {aba === 'noticias' && <GestaoNoticias />}
 
         {aba === 'config' && cfg && (
           <form
@@ -330,9 +261,9 @@ export default function Admin() {
               }
             }}
           >
-            <Campo rotulo="Taxa base (R$)">
-              <input className={classeInput} type="number" step="0.01" value={cfg.taxaBase} onChange={(e) => setCfg({ ...cfg, taxaBase: Number(e.target.value) })} />
-            </Campo>
+            <p className="text-[12.5px] text-pet-navy/60">
+              A taxa de inscrição agora é definida em cada evento, na aba Eventos.
+            </p>
             <Campo rotulo="Conta / info Pix">
               <input className={classeInput} value={cfg.contaPix} onChange={(e) => setCfg({ ...cfg, contaPix: e.target.value })} />
             </Campo>
@@ -344,7 +275,7 @@ export default function Admin() {
             </Campo>
             <label className="flex items-center gap-2 text-[13px]">
               <input type="checkbox" checked={cfg.inscricoesAbertas} onChange={(e) => setCfg({ ...cfg, inscricoesAbertas: e.target.checked })} />
-              Inscrições abertas
+              Inscrições abertas (vale para todos os eventos)
             </label>
             <button className="bg-pet-navy px-4 py-2.5 text-[13px] font-semibold text-white">Salvar</button>
             <button
@@ -356,7 +287,7 @@ export default function Admin() {
                 carregarLista(1)
               }}
             >
-              Zerar evento
+              Zerar inscrições
             </button>
           </form>
         )}
@@ -366,6 +297,7 @@ export default function Admin() {
         <div className="fixed inset-0 z-40 grid place-items-center bg-pet-ink/50 p-4" onClick={() => setDetalhe(null)}>
           <div className="w-full max-w-md bg-white p-5 text-[13px]" onClick={(e) => e.stopPropagation()}>
             <p className="font-semibold text-pet-deep">{detalhe.nome} · {detalhe.numero}</p>
+            <p className="text-pet-navy/60">{detalhe.eventoNome}</p>
             <p className="mt-1 text-pet-navy/70">{detalhe.email} · {mascaraTel(detalhe.telefone)}</p>
             <p>CPF {mascaraCpf(detalhe.cpf)} · {detalhe.genero}</p>
             <p className="mt-2">{rotuloStatus[detalhe.status]} · R$ {Number(detalhe.valor).toFixed(2)}</p>
@@ -381,70 +313,6 @@ export default function Admin() {
         <Link to="/">← Site público</Link>
       </p>
     </div>
-  )
-}
-
-function NovaAtividade({ diaId, aoCriar }) {
-  const [titulo, setTitulo] = useState('')
-  const [tipo, setTipo] = useState('palestra')
-  const [preco, setPreco] = useState('0')
-  const [vagas, setVagas] = useState('')
-  const [erro, setErro] = useState('')
-  const [enviando, setEnviando] = useState(false)
-
-  async function enviar(e) {
-    e.preventDefault()
-    setEnviando(true)
-    setErro('')
-    try {
-      await api('/admin/atividades', {
-        method: 'POST',
-        body: {
-          diaId,
-          titulo,
-          tipo,
-          precoExtra: Number(preco || 0),
-          vagas: vagas === '' ? null : Number(vagas),
-        },
-      })
-      setTitulo('')
-      setPreco('0')
-      setVagas('')
-      await aoCriar()
-    } catch (err) {
-      setErro(err.message)
-    } finally {
-      setEnviando(false)
-    }
-  }
-
-  return (
-    <form onSubmit={enviar} className="mt-2 grid gap-2 border border-dashed border-pet-navy/25 bg-white p-3 sm:grid-cols-[1fr_120px_80px_80px_90px]">
-      <label className="text-[11px] text-pet-navy/50">
-        Nova atividade
-        <input className={classeInput} value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título" required />
-      </label>
-      <label className="text-[11px] text-pet-navy/50">
-        Tipo
-        <select className={classeInput} value={tipo} onChange={(e) => setTipo(e.target.value)}>
-          {TIPOS.map((t) => (
-            <option key={t.id} value={t.id}>{t.rotulo}</option>
-          ))}
-        </select>
-      </label>
-      <label className="text-[11px] text-pet-navy/50">
-        Extra
-        <input className={classeInput} type="number" min="0" step="0.01" value={preco} onChange={(e) => setPreco(e.target.value)} />
-      </label>
-      <label className="text-[11px] text-pet-navy/50">
-        Vagas
-        <input className={classeInput} type="number" min="0" step="1" value={vagas} onChange={(e) => setVagas(e.target.value)} placeholder="livre" />
-      </label>
-      <button disabled={enviando} className="self-end bg-pet-orange py-2 text-[12px] font-semibold text-white">
-        Cadastrar
-      </button>
-      {erro && <p className="text-[12px] text-pet-orange sm:col-span-5">{erro}</p>}
-    </form>
   )
 }
 

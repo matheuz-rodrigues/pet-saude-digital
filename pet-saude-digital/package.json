@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Site do I Simposio PET Saude Digital - UEPA",
+  "description": "Site de eventos e noticias do PET Saude Digital - UEPA",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

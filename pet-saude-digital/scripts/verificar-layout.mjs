@@ -1,7 +1,7 @@
 /*
  * Verificacao de fumaca do layout.
  *
- * Abre o site em Chrome headless, percorre as sete abas em tres larguras e
+ * Abre o site em Chrome headless, percorre as quatro abas em tres larguras e
  * reporta: elementos que vazam para fora da tela, erros de JavaScript e
  * respostas HTTP com falha. Opcionalmente salva um screenshot por aba.
  *
@@ -22,7 +22,7 @@ const CHROME =
 const BASE = process.argv[2] || 'http://localhost:4173'
 const PASTA_CAPTURAS = process.argv[3] || null
 
-const ABAS = ['sobre', 'programacao', 'palestrantes', 'submissao', 'local', 'apoiadores', 'contato']
+const ABAS = ['inicio', 'eventos', 'noticias', 'contato']
 const LARGURAS = [390, 768, 1440]
 
 if (PASTA_CAPTURAS) mkdirSync(PASTA_CAPTURAS, { recursive: true })

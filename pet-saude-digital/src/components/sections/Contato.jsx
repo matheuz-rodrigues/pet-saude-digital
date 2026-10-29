@@ -1,38 +1,40 @@
 import { motion } from 'framer-motion'
-import { evento, linkEmail } from '../../data/evento'
+import { linkEmail, programa } from '../../data/programa'
 import { surgir } from '../../lib/motion'
 import { useInscricao } from '../../contexto/Inscricao'
 import TituloSecao from '../ui/TituloSecao'
 import BlocoAcao from '../ui/BlocoAcao'
 import Sanfona from '../ui/Sanfona'
-import { useTaxa } from '../../hooks/useTaxa'
+import { useEventosComInscricao } from '../../hooks/useEventosComInscricao'
+import { rotuloTaxa } from '../../lib/dinheiro'
 
 export default function Contato() {
   const { abrir } = useInscricao()
-  const taxa = useTaxa()
+  const { eventos: abertos } = useEventosComInscricao()
   const duvidas = [
     {
-      pergunta: 'Como faço a inscrição e como pago a taxa?',
-      resumo: 'No site, com pagamento em Pix',
-      resposta: `Clique em Inscrever-se no cabeçalho (ou na barra inferior do celular). Depois de preencher os dados, você paga a taxa de ${taxa} por Pix e recebe o comprovante no e-mail cadastrado. Quem já se inscreveu entra em Minha inscrição.`,
+      pergunta: 'Como faço a inscrição?',
+      resumo: 'Pelo site, em cada evento com inscrição',
+      resposta:
+        'Na aba Eventos, abra o evento e clique em Inscrever-se. Cada evento tem a sua taxa, paga por Pix, e você escolhe as atividades na própria inscrição. Com a conta criada, as próximas inscrições não pedem os seus dados de novo. Quem já se inscreveu acompanha tudo em Minhas inscrições.',
     },
     {
-      pergunta: `A taxa de ${taxa} cobre a semana toda?`,
-      resumo: 'Sim, valor único para os cinco dias',
+      pergunta: 'As atividades têm vagas limitadas?',
+      resumo: 'Algumas, sim',
       resposta:
-        'Sim. O valor é único e dá acesso a toda a programação dos cinco dias, incluindo palestras, minicursos, oficinas e mesas-redondas, além do certificado de 40 horas e do coffee break.',
-    },
-    {
-      pergunta: 'Os minicursos têm vagas limitadas?',
-      resumo: '30 vagas por minicurso',
-      resposta:
-        'Sim. Cada minicurso comporta 30 participantes, porque o campus tem um único laboratório de informática — por isso eles acontecem em dias diferentes, e não em paralelo. A escolha é feita na inscrição, por ordem de confirmação de pagamento.',
+        'Palestras e mesas-redondas costumam ter vagas livres. Minicursos e oficinas têm limite de participantes, mostrado ao lado de cada atividade na inscrição.',
     },
     {
       pergunta: 'Preciso ser estudante da UEPA?',
-      resumo: 'Não, o evento é aberto ao público externo',
+      resumo: 'Não, os eventos são abertos ao público externo',
       resposta:
-        'Não. O simpósio é aberto à comunidade externa, especialmente a profissionais e estudantes das áreas de saúde e tecnologia da região metropolitana de Belém.',
+        'Não. Os eventos do PET Saúde Digital são abertos à comunidade externa, especialmente a profissionais e estudantes das áreas de saúde e tecnologia.',
+    },
+    {
+      pergunta: 'Onde fico sabendo dos próximos eventos?',
+      resumo: 'Nas abas Eventos e Notícias',
+      resposta:
+        'Todos os eventos do programa ficam na aba Eventos, e os avisos e resultados saem na aba Notícias. A página inicial sempre mostra o próximo evento e as últimas notícias.',
     },
   ]
   const blocos = [
@@ -47,16 +49,16 @@ export default function Contato() {
     {
       id: 'outros',
       titulo: 'Outros canais e organização',
-      resumo: `Instagram ${evento.instagram}`,
+      resumo: `Instagram ${programa.instagram}`,
       conteudo: (
         <div className="space-y-3">
           <div>
             <p className="label text-pet-navy/40">Redes sociais</p>
             <p className="mt-1 text-[14px] font-semibold tracking-tight text-pet-deep">
-              {evento.instagram}
+              {programa.instagram}
             </p>
             <p className="mt-0.5 text-[12.5px] text-pet-navy/60">
-              Divulgação diária da programação e dos palestrantes.
+              Divulgação dos eventos e das notícias do programa.
             </p>
           </div>
           <div>
@@ -79,7 +81,7 @@ export default function Contato() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <TituloSecao numero="07" etiqueta="Contato" titulo="Fale com a organização">
+      <TituloSecao numero="04" etiqueta="Contato" titulo="Fale com a organização">
         A inscrição é feita neste site. WhatsApp e e-mail ficam para dúvidas.
       </TituloSecao>
 
@@ -89,19 +91,33 @@ export default function Contato() {
         animate="visivel"
         className="grid grid-cols-2 gap-px bg-pet-navy/12"
       >
-        <BlocoAcao
-          tom="orange"
-          onClick={abrir}
-          etiqueta="Inscrições"
-          titulo="Inscrever-se"
-          descricao={`${taxa} · Pix no site`}
-        />
+        {abertos.length ? (
+          <BlocoAcao
+            tom="orange"
+            onClick={() => abrir(abertos.length === 1 ? abertos[0].id : null)}
+            etiqueta="Inscrições abertas"
+            titulo="Inscrever-se"
+            descricao={
+              abertos.length === 1
+                ? `${abertos[0].nome} · ${rotuloTaxa(abertos[0].taxa)}`
+                : `${abertos.length} eventos com inscrição aberta`
+            }
+          />
+        ) : (
+          <BlocoAcao
+            tom="orange"
+            href="#eventos"
+            etiqueta="Inscrições"
+            titulo="Ver eventos"
+            descricao="Nenhuma inscrição aberta agora"
+          />
+        )}
         <BlocoAcao
           tom="navy"
-          href={linkEmail('Contato — I Simpósio PET Saúde Digital')}
+          href={linkEmail('Contato — PET Saúde Digital')}
           etiqueta="Assuntos formais"
           titulo="E-mail"
-          descricao={evento.email}
+          descricao={programa.email}
         />
       </motion.div>
 

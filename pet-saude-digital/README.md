@@ -1,15 +1,11 @@
-# PET Saúde Digital · UEPA — site do I Simpósio
+# PET Saúde Digital · UEPA — eventos e notícias
 
-SPA em React construída para o evento **I Simpósio PET Saúde Digital**, da Universidade do
-Estado do Pará — 19 a 23 de outubro de 2026, no **Campus XXII, em Ananindeua/PA**.
+SPA em React do **PET Saúde Digital**, da Universidade do Estado do Pará. Nasceu como o site de
+um único evento (o I Simpósio) e foi generalizada: agora publica **vários eventos** e
+**notícias**, cadastrados no painel `/admin`, e mantém a inscrição paga com Pix.
 
-O endereço e a estrutura do campus são reais (Av. Independência, s/n, Icuí-Guajará, ao lado da
-Usina da Paz do Icuí; auditório, cinco salas e **um único** laboratório de informática — por
-isso os minicursos práticos nunca acontecem em paralelo). Nomes de pessoas, datas, valores e
-contatos seguem **fictícios**, conforme acordado nas reuniões de levantamento de requisitos.
-
-As fotografias em `src/assets/palestrantes/` foram recortadas em quadrado (500×500) e
-comprimidas: 4,6 MB no original viraram ~250 KB no total.
+Nomes de pessoas, datas, valores e contatos seguem **fictícios**, conforme acordado nas reuniões
+de levantamento de requisitos.
 
 ---
 
@@ -44,7 +40,7 @@ npm run preview      # em um terminal
 npm run verificar    # em outro
 ```
 
-O script abre o site em Chrome headless, percorre as sete abas em 390px, 768px
+O script abre o site em Chrome headless, percorre as quatro abas em 390px, 768px
 e 1440px e falha se algum elemento vazar para fora da tela, se algum painel
 vier vazio ou se houver erro de JavaScript. Para salvar as capturas:
 
@@ -88,14 +84,47 @@ um domínio quanto em uma subpasta (ex.: `uepa.br/petsaude`) sem ajuste adiciona
 | "Não quero telas extensas com scroll; quero um menu que troque o conteúdo" | SPA de abas: `useAbas` guarda a aba ativa e `App.jsx` monta só a seção correspondente. Ticker, cabeçalho e menu ficam fixos; apenas o `<main>` rola. |
 | Paleta do PET (azul fechado + laranja), e não a da UEPA | Paleta B registrada em `tailwind.config.js` como `pet.navy`, `pet.deep`, `pet.orange`, `pet.sky`, `pet.ice`. |
 | Tipografia: opção de família única | IBM Plex Sans em todos os níveis — a hierarquia vem de peso, tamanho e entreletra. |
-| "Tentar minimizar de tal forma que caiba tudo em uma tela" | Cada aba mostra só um núcleo sempre visível; o resto fica em `Sanfona` (um item aberto por vez), **fechada por padrão no celular** e com o primeiro item aberto no desktop. A programação mostra um turno por vez no celular. |
-| "Se eu clicar na palestra, aparece o detalhe; no palestrante também" | Linhas da programação expandem no clique; palestrantes abrem um painel com minicurrículo e as atividades em que participam. |
-| "Posso acessar todos os palestrantes em conjunto" | Aba 03 lista os oito palestrantes de forma independente da grade. |
-| "Parceiros é uma coisa, patrocinadores é outra, e quem promove é outra" | Aba 06 separa **Realização**, **Patrocinadores** e **Parceiros** em blocos distintos. |
+| "Tentar minimizar de tal forma que caiba tudo em uma tela" | Cada aba mostra só um núcleo sempre visível; o resto fica em `Sanfona` (um item aberto por vez), **fechada por padrão no celular** e com o primeiro item aberto no desktop. |
 | "Quando a UEPA promove, a marca dela fica embaixo" | Assinatura da UEPA no rodapé, e não no cabeçalho. |
-| Inscrição paga de R$ 15,00, contato por WhatsApp | CTA fixo no cabeçalho (desktop) e barra fixa inferior (mobile), ambas para `wa.me`. |
-| Submissão por e-mail e WhatsApp, sem formulário | Aba 04 com blocos de ação `mailto:` e `wa.me`. |
-| Divulgação principalmente por WhatsApp | Layout mobile-first e hash na URL (`#programacao`) para compartilhar link direto de uma seção. |
+| Inscrição paga, com taxa definida pela organização | Cada evento completo tem taxa própria, definida no admin. O CTA do cabeçalho (desktop), a barra inferior (mobile) e o botão do evento abrem a inscrição no próprio site, com Pix. Sem evento com inscrição aberta, o CTA some. |
+| Sistema genérico, não só de um evento | Eventos e notícias cadastrados no admin. A aba **Início** mostra o evento em destaque e as últimas notícias, e o letreiro do topo passa as manchetes. |
+| Divulgação principalmente por WhatsApp | Layout mobile-first e hash na URL (`#noticias&noticia=3`) para compartilhar link direto de uma seção ou de uma notícia. |
+
+---
+
+## Eventos e notícias — desenvolvimento incremental
+
+Pedido da universidade: o sistema deixa de servir a **um único evento** e passa a aceitar o
+cadastro de **vários eventos** e de **notícias**. As abas que existiam só para o simpósio
+(Programação, Palestrantes, Submissão, Local e Apoiadores) foram removidas, e o site ficou com
+**01 Início**, **02 Eventos**, **03 Notícias** e **04 Contato**. A mudança foi entregue seguindo o modelo de
+processo **Incremental**: cada incremento passa por análise → projeto → código → teste e termina
+utilizável sozinho, e o seguinte se apoia no que o anterior entregou.
+
+| Incremento | Entrega | Onde está |
+| --- | --- | --- |
+| **1 · Cadastro de eventos** | Tabela `eventos` (o I Simpósio entra como exemplo quando a tabela está vazia), CRUD no admin com publicar/ocultar, rota pública `GET /api/eventos` e aba **02 Eventos** no site, ordenada por situação (acontecendo → em breve → encerrados). O primeiro da lista aparece em destaque na aba Início. | `server/sql/001_schema.sql`, `server/rotas/admin.js`, `src/components/admin/GestaoEventos.jsx`, `src/components/sections/Eventos.jsx` |
+| **2 · Cadastro de notícias** | Tabela `noticias` com vínculo **opcional** a um evento do incremento 1 (`ON DELETE SET NULL`: apagar o evento não apaga a notícia), CRUD no admin com rascunho/publicada, `GET /api/noticias`, aba **03 Notícias**, últimas notícias na aba Início e manchetes no letreiro do topo. | `server/sql/001_schema.sql`, `server/rotas/admin.js`, `src/components/admin/GestaoNoticias.jsx`, `src/components/sections/Noticias.jsx` |
+| **3 · Eventos completos e inscrição por evento** | Dois tipos de evento: **simples** (só divulgação) e **completo** (taxa, inscrições abertas/fechadas e atividades próprias). `atividades` e `inscricoes` passam a ter `evento_id`. A conta do participante vale para todos os eventos, com **uma inscrição por evento** (`UNIQUE (participante_id, evento_id)`): quem já tem conta se inscreve em outro evento sem repetir o cadastro. As atividades avulsas do simpósio foram removidas. Na aba Eventos, o evento completo mostra a programação por dia e o botão de inscrição. | `server/sql/001_schema.sql`, `server/rotas/participante.js`, `server/rotas/admin.js`, `src/components/admin/GestaoAtividades.jsx`, `src/components/inscricao/ModalInscricao.jsx`, `src/paginas/MinhaInscricao.jsx` |
+
+Rotas do admin (exigem login): `GET/POST /api/admin/eventos`, `PUT/DELETE /api/admin/eventos/:id`,
+o mesmo par para `/api/admin/noticias`, `GET/POST /api/admin/eventos/:id/atividades` e
+`PUT/DELETE /api/admin/atividades/:id`. Inscritos e resumo aceitam `?evento=ID`. A validação fica em
+`server/lib/validar.js` (`validarEvento`, `validarNoticia`, `validarAtividade`).
+
+Rotas do participante: `POST /api/inscricoes` cria a conta e a primeira inscrição;
+`POST /api/inscricoes/eventos` inscreve quem já tem conta; `GET/PATCH /api/inscricoes/eu` traz a conta
+com todas as inscrições e corrige os dados pessoais; `PATCH /api/inscricoes/:id/atividades` e
+`POST /api/inscricoes/:id/{pix,gratuidade,cancelar,reenviar}` agem sobre uma inscrição.
+
+Regras que o servidor garante: só evento completo, publicado, com inscrições abertas e não
+encerrado aceita inscrição; a data da atividade fica dentro do período do evento; evento com
+inscritos não pode ser apagado nem virar simples; evento gratuito sem extras é confirmado na
+hora, sem Pix. Bancos do formato antigo (atividades sem evento) têm as tabelas `atividades`,
+`inscricoes` e `inscricao_atividades` recriadas ao subir a API — as contas dos participantes ficam.
+
+Datas trafegam como texto `AAAA-MM-DD` (o banco devolve com `DATE_FORMAT`) e são formatadas em
+`src/lib/datas.js` sem `new Date(...)`, para o fuso do navegador não deslocar o dia.
 
 ---
 
@@ -108,41 +137,43 @@ src/
 ├── index.css                  base do Tailwind + utilitários do projeto
 │
 ├── config/
-│   └── abas.js                registro das sete abas (id, número, rótulo)
+│   └── abas.js                registro das quatro abas (id, número, rótulo)
 │
-├── data/                      conteúdo do evento — trocar aqui, não nos componentes
-│   ├── evento.js              dados institucionais, números, links de contato
-│   ├── palestrantes.js        lista única de palestrantes (fonte de verdade)
-│   ├── programacao.js         grade por dia > turno > atividade
-│   └── apoiadores.js          realização, patrocinadores e parceiros
+├── data/
+│   └── programa.js            dados do programa: contatos, objetivos, coordenação
 │
 ├── hooks/
-│   └── useAbas.js             aba ativa, hash da URL, direção da animação, setas do teclado
+│   ├── useAbas.js             aba ativa, hash da URL (e `parametroHash`), setas do teclado
+│   ├── useListaApi.js         listas públicas da API (eventos, notícias)
+│   └── useEventosComInscricao.js  eventos com inscrição aberta agora
 │
 ├── lib/
-│   └── motion.js              variantes de animação compartilhadas
+│   ├── motion.js              variantes de animação compartilhadas
+│   ├── dinheiro.js            valores em reais e rótulo da taxa
+│   └── datas.js               formatação de datas, situação e ordem dos eventos
 │
 └── components/
     ├── layout/                Ticker, Cabecalho, MenuAbas, Rodape, BarraInscricao
-    ├── ui/                    TituloSecao, Monograma, BlocoAcao
-    └── sections/              uma seção por aba (Sobre … Contato)
+    ├── ui/                    TituloSecao, Monograma, BlocoAcao, Sanfona, AvisoLista, Paragrafos
+    ├── admin/                 GestaoEventos, GestaoAtividades, GestaoNoticias
+    └── sections/              uma seção por aba (Inicio, Eventos, Noticias, Contato)
 ```
 
 ### Para atualizar o conteúdo
 
-Nada em `components/` precisa ser tocado para trocar informação do evento:
+Nada em `components/` precisa ser tocado para trocar conteúdo:
 
-- **datas, valores, contatos** → `src/data/evento.js`
-- **palestrantes** → `src/data/palestrantes.js` (o `id` é o que liga à programação)
-- **grade** → `src/data/programacao.js`
-- **instituições** → `src/data/apoiadores.js`
+- **eventos e notícias** → painel `/admin`, abas *Eventos* e *Notícias* (ficam no banco)
+- **tipo do evento, taxa, inscrições abertas e atividades** → painel `/admin`, aba *Eventos*
+- **Pix, prazo de cancelamento, chave geral de inscrições** → painel `/admin`, aba *Config*
+- **contatos, objetivos, coordenação** → `src/data/programa.js`
 
 ---
 
 ## Detalhes de implementação
 
-- **Navegação por teclado** — setas ← e → trocam de aba; `Esc` fecha o perfil do palestrante.
-- **Link direto** — a aba ativa é gravada no hash (`#submissao`), então dá para mandar no
+- **Navegação por teclado** — setas ← e → trocam de aba.
+- **Link direto** — a aba ativa é gravada no hash (`#eventos`), então dá para mandar no
   WhatsApp um link que abre direto na seção certa.
 - **Sem biblioteca de ícones** — as poucas setas são SVG inline, o que evita 300 kB de
   dependência para meia dúzia de traços.
@@ -158,7 +189,5 @@ Nada em `components/` precisa ser tocado para trocar informação do evento:
 Itens que dependem de terceiros e ainda não chegaram:
 
 - [ ] Logos da UEPA e do PET Saúde em vetor (SVG/AI/EPS)
-- [ ] Fotografias dos palestrantes + autorização de uso de imagem
-- [ ] Endereço oficial, com nome correto do prédio e das salas
-- [ ] Grade final validada pela comissão científica
-- [ ] E-mail e WhatsApp institucionais reais
+- [ ] Fotografia da coordenadora geral + autorização de uso de imagem
+- [ ] E-mail e Instagram institucionais reais

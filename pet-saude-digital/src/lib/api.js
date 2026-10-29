@@ -40,6 +40,6 @@ export const rotuloStatus = {
   rascunho: 'Rascunho',
   aguardando_pix: 'Aguardando Pix',
   aguardando_gratuidade: 'Aguardando gratuidade',
-  pago: 'Pago',
+  pago: 'Confirmada',
   cancelada: 'Cancelada',
 }

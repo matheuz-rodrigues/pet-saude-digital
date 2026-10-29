@@ -42,7 +42,7 @@ export async function garantirCliente({ nome, email, cpf, telefone, asaasCustome
   return criado.id
 }
 
-export async function criarCobrancaPix({ customerId, valor, inscricaoId, vencimento }) {
+export async function criarCobrancaPix({ customerId, valor, inscricaoId, evento, vencimento }) {
   if (!asaasAtivo()) {
     return {
       paymentId: `mock_pay_${inscricaoId}_${Date.now()}`,
@@ -60,7 +60,7 @@ export async function criarCobrancaPix({ customerId, valor, inscricaoId, vencime
       value: Number(valor),
       dueDate: vencimento,
       externalReference: String(inscricaoId),
-      description: `Inscrição nº ${inscricaoId} — I Simpósio PET Saúde Digital`,
+      description: `Inscrição nº ${inscricaoId} — ${evento || 'PET Saúde Digital'}`,
     }),
   })
 

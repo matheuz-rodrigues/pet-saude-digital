@@ -55,7 +55,6 @@ export function validarCadastro(corpo, { senhaObrigatoria = true } = {}) {
   const senha = String(corpo.senha || '')
   const senha2 = String(corpo.senha2 || '')
   const aceiteLgpd = Boolean(corpo.aceiteLgpd)
-  const atividades = [...new Set(Array.isArray(corpo.atividades) ? corpo.atividades.map(String) : [])]
 
   if (!nomeCompletoValido(nomeCompleto)) throw erro(400, 'Informe o nome completo (pelo menos duas palavras).')
   if (usaNomeSocial && nomeSocial.length < 2) throw erro(400, 'Informe o nome social.')
@@ -80,8 +79,96 @@ export function validarCadastro(corpo, { senhaObrigatoria = true } = {}) {
     email,
     telefone,
     senha,
-    atividades,
   }
+}
+
+export function dataValida(data) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return false
+  const dt = new Date(`${data}T00:00:00`)
+  return !Number.isNaN(dt.getTime()) && dt.toISOString().startsWith(data)
+}
+
+export function validarEvento(corpo) {
+  const nome = String(corpo.nome || '').trim()
+  const chamada = String(corpo.chamada || '').trim()
+  const descricao = String(corpo.descricao || '').trim()
+  const dataInicio = String(corpo.dataInicio || '')
+  const dataFim = String(corpo.dataFim || dataInicio)
+  const local = String(corpo.local || '').trim()
+
+  if (nome.length < 3) throw erro(400, 'Informe o nome do evento.')
+  if (nome.length > 180) throw erro(400, 'O nome do evento pode ter até 180 caracteres.')
+  if (chamada.length > 280) throw erro(400, 'A chamada pode ter até 280 caracteres.')
+  if (!dataValida(dataInicio)) throw erro(400, 'Informe uma data de início válida.')
+  if (!dataValida(dataFim)) throw erro(400, 'Informe uma data de término válida.')
+  if (dataFim < dataInicio) throw erro(400, 'O término não pode ser antes do início.')
+  if (local.length > 180) throw erro(400, 'O local pode ter até 180 caracteres.')
+
+  const tipo = corpo.tipo === 'completo' ? 'completo' : 'simples'
+  // Evento simples nao tem inscricao, entao a taxa fica zerada.
+  const taxa = tipo === 'completo' ? Number(corpo.taxa ?? 0) : 0
+  if (Number.isNaN(taxa) || taxa < 0) throw erro(400, 'Taxa de inscrição inválida.')
+
+  return {
+    nome,
+    chamada,
+    descricao,
+    dataInicio,
+    dataFim,
+    local,
+    tipo,
+    taxa,
+    inscricoesAbertas: corpo.inscricoesAbertas !== false,
+    publicado: corpo.publicado !== false,
+  }
+}
+
+export const TIPOS_ATIVIDADE = ['palestra', 'mesa', 'minicurso', 'oficina', 'projetos']
+
+/** Atividade de um evento completo: a data precisa cair dentro do evento. */
+export function validarAtividade(corpo, evento) {
+  const titulo = String(corpo.titulo || '').trim()
+  const data = String(corpo.data || '')
+  const horario = String(corpo.horario || '').trim()
+  const tipo = String(corpo.tipo || 'palestra')
+  const precoExtra = Number(corpo.precoExtra ?? 0)
+  const vagas = corpo.vagas === '' || corpo.vagas == null ? null : Number(corpo.vagas)
+
+  if (titulo.length < 3) throw erro(400, 'Informe o título da atividade.')
+  if (titulo.length > 255) throw erro(400, 'O título pode ter até 255 caracteres.')
+  if (!dataValida(data)) throw erro(400, 'Informe a data da atividade.')
+  if (data < evento.data_inicio || data > evento.data_fim) {
+    throw erro(400, 'A data da atividade precisa estar dentro do período do evento.')
+  }
+  if (horario.length > 40) throw erro(400, 'O horário pode ter até 40 caracteres.')
+  if (!TIPOS_ATIVIDADE.includes(tipo)) throw erro(400, 'Tipo de atividade inválido.')
+  if (Number.isNaN(precoExtra) || precoExtra < 0) throw erro(400, 'Preço extra inválido.')
+  if (vagas != null && (!Number.isInteger(vagas) || vagas < 0)) throw erro(400, 'Vagas inválidas.')
+
+  return { titulo, data, horario, tipo, precoExtra, vagas }
+}
+
+/** Ids de atividades vindos do front, sem repeticao. */
+export function idsAtividades(corpo) {
+  const lista = Array.isArray(corpo.atividades) ? corpo.atividades : []
+  return [...new Set(lista.map(Number).filter(Number.isInteger))]
+}
+
+export function validarNoticia(corpo) {
+  const titulo = String(corpo.titulo || '').trim()
+  const resumo = String(corpo.resumo || '').trim()
+  const conteudo = String(corpo.conteudo || '').trim()
+  const publicadaEm = String(corpo.publicadaEm || '')
+  const eventoId = corpo.eventoId === '' || corpo.eventoId == null ? null : Number(corpo.eventoId)
+
+  if (titulo.length < 3) throw erro(400, 'Informe o título da notícia.')
+  if (titulo.length > 180) throw erro(400, 'O título pode ter até 180 caracteres.')
+  if (resumo.length > 280) throw erro(400, 'O resumo pode ter até 280 caracteres.')
+  if (!resumo && !conteudo) throw erro(400, 'Escreva um resumo ou o texto da notícia.')
+  if (!dataValida(publicadaEm)) throw erro(400, 'Informe uma data de publicação válida.')
+  if (eventoId != null && !Number.isInteger(eventoId)) throw erro(400, 'Evento inválido.')
+
+  return { titulo, resumo, conteudo, publicadaEm, eventoId, publicada: corpo.publicada !== false }
 }
 
 export { GENEROS }

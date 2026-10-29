@@ -1,9 +1,19 @@
 import { Router } from 'express'
 import bcrypt from 'bcryptjs'
-import { atividadesComVagas, config, montarInscricao, ocupacaoAtividades, q } from '../db.js'
+import {
+  atividadesComVagas,
+  buscarEvento,
+  config,
+  dadosComprovante,
+  listarEventos,
+  listarNoticias,
+  montarInscricao,
+  ocupacaoAtividades,
+  q,
+} from '../db.js'
 import { cancelarCobranca } from '../lib/asaas.js'
 import { enviarComprovante } from '../lib/email.js'
-import { erro } from '../lib/validar.js'
+import { erro, validarAtividade, validarEvento, validarNoticia } from '../lib/validar.js'
 import { gerarPixPara } from './participante.js'
 
 export const admin = Router()
@@ -45,8 +55,15 @@ admin.get('/eu', (req, res) => {
   res.json({ admin: Boolean(req.session?.admin), email: req.session?.admin ? ADMIN_EMAIL : null })
 })
 
-admin.get('/resumo', exigeAdmin, async (_req, res, next) => {
+// Os numeros e a lista de inscritos aceitam ?evento=ID para olhar um evento so.
+function filtroEvento(req) {
+  const id = Number(req.query.evento)
+  return Number.isInteger(id) && id > 0 ? id : null
+}
+
+admin.get('/resumo', exigeAdmin, async (req, res, next) => {
   try {
+    const eventoId = filtroEvento(req)
     const rows = await q(
       `SELECT
          COUNT(*) AS total,
@@ -54,7 +71,9 @@ admin.get('/resumo', exigeAdmin, async (_req, res, next) => {
          SUM(status='aguardando_pix') AS aguardando,
          SUM(status='aguardando_gratuidade') AS gratuidades,
          SUM(status='cancelada') AS cancelados
-       FROM inscricoes`,
+       FROM inscricoes
+       ${eventoId ? 'WHERE evento_id = ?' : ''}`,
+      eventoId ? [eventoId] : [],
     )
     res.json({
       total: Number(rows[0].total || 0),
@@ -77,6 +96,11 @@ admin.get('/inscritos', exigeAdmin, async (req, res, next) => {
     const where = []
     const params = {}
 
+    const eventoId = filtroEvento(req)
+    if (eventoId) {
+      where.push('i.evento_id = :evento')
+      params.evento = eventoId
+    }
     if (status) {
       where.push('i.status = :status')
       params.status = status
@@ -94,9 +118,11 @@ admin.get('/inscritos', exigeAdmin, async (req, res, next) => {
     const lista = await q(
       `SELECT p.id AS participante_id, p.numero, p.nome_completo, p.usa_nome_social, p.nome_social, p.genero,
               p.nascimento, p.cpf, p.email, p.telefone, i.id AS inscricao_id, i.status, i.valor,
-              i.gratuidade_motivo, i.credenciado_em, i.cancelada_em, i.created_at
+              i.gratuidade_motivo, i.credenciado_em, i.cancelada_em, i.created_at,
+              e.id AS evento_id, e.nome AS evento_nome
        FROM inscricoes i
        JOIN participantes p ON p.id = i.participante_id
+       JOIN eventos e ON e.id = i.evento_id
        ${filtro}
        ORDER BY i.id DESC
        LIMIT ${porPagina} OFFSET ${(pagina - 1) * porPagina}`,
@@ -134,6 +160,8 @@ admin.get('/inscritos', exigeAdmin, async (req, res, next) => {
         cpf: r.cpf,
         email: r.email,
         telefone: r.telefone,
+        eventoId: r.evento_id,
+        eventoNome: r.evento_nome,
         status: r.status,
         valor: Number(r.valor),
         gratuidadeMotivo: r.gratuidade_motivo,
@@ -152,12 +180,10 @@ admin.get('/config', exigeAdmin, async (_req, res, next) => {
   try {
     const cfg = await config()
     res.json({
-      taxaBase: Number(cfg.taxa_base),
       contaPix: cfg.conta_pix,
       prazoCancelamentoDias: cfg.prazo_cancelamento_dias,
       percentualReembolso: Number(cfg.percentual_reembolso),
       inscricoesAbertas: Boolean(cfg.inscricoes_abertas),
-      atividades: await atividadesComVagas(),
     })
   } catch (err) {
     next(err)
@@ -166,17 +192,14 @@ admin.get('/config', exigeAdmin, async (_req, res, next) => {
 
 admin.put('/config', exigeAdmin, async (req, res, next) => {
   try {
-    const taxaBase = Number(req.body.taxaBase)
     const prazo = Number(req.body.prazoCancelamentoDias)
     const reembolso = Number(req.body.percentualReembolso)
-    if (Number.isNaN(taxaBase) || taxaBase < 0) throw erro(400, 'Taxa inválida.')
     if (!Number.isInteger(prazo) || prazo < 0 || prazo > 365) throw erro(400, 'Prazo de cancelamento inválido.')
     if (Number.isNaN(reembolso) || reembolso < 0 || reembolso > 100) throw erro(400, 'O reembolso precisa ficar entre 0 e 100.')
     await q(
-      `UPDATE config SET taxa_base=?, conta_pix=?, prazo_cancelamento_dias=?, percentual_reembolso=?, inscricoes_abertas=?
+      `UPDATE config SET conta_pix=?, prazo_cancelamento_dias=?, percentual_reembolso=?, inscricoes_abertas=?
        WHERE id=1`,
       [
-        taxaBase,
         String(req.body.contaPix || ''),
         Number.isNaN(prazo) ? 7 : prazo,
         Number.isNaN(reembolso) ? 100 : reembolso,
@@ -189,102 +212,10 @@ admin.put('/config', exigeAdmin, async (req, res, next) => {
   }
 })
 
-const DIAS_EVENTO = {
-  segunda: { rotulo: 'Segunda-feira', dataCurta: '19/10' },
-  terca: { rotulo: 'Terça-feira', dataCurta: '20/10' },
-  quarta: { rotulo: 'Quarta-feira', dataCurta: '21/10' },
-  quinta: { rotulo: 'Quinta-feira', dataCurta: '22/10' },
-  sexta: { rotulo: 'Sexta-feira', dataCurta: '23/10' },
-}
-const TIPOS_ATIVIDADE = new Set(['palestra', 'mesa', 'minicurso', 'oficina', 'projetos'])
-
-function idAtividade(titulo) {
-  const base = titulo
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 40)
-  return `${base || 'atividade'}-${Date.now().toString(36)}`
-}
-
-admin.post('/atividades', exigeAdmin, async (req, res, next) => {
-  try {
-    const dia = DIAS_EVENTO[req.body.diaId]
-    if (!dia) throw erro(400, 'Escolha um dia do evento.')
-    const titulo = String(req.body.titulo || '').trim()
-    if (titulo.length < 3) throw erro(400, 'Informe o título da atividade.')
-    const tipo = String(req.body.tipo || 'palestra')
-    if (!TIPOS_ATIVIDADE.has(tipo)) throw erro(400, 'Tipo de atividade inválido.')
-    const preco = Number(req.body.precoExtra ?? 0)
-    if (Number.isNaN(preco) || preco < 0) throw erro(400, 'Preço extra inválido.')
-    const vagas = req.body.vagas === '' || req.body.vagas == null ? null : Number(req.body.vagas)
-    if (vagas != null && (!Number.isInteger(vagas) || vagas < 0)) throw erro(400, 'Vagas inválidas.')
-    const [ordem] = await q('SELECT IFNULL(MAX(ordem), 0) + 1 AS prox FROM atividades')
-    await q(
-      `INSERT INTO atividades (id, dia_id, dia_rotulo, data_curta, tipo, titulo, preco_extra, vagas, ordem)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [idAtividade(titulo), req.body.diaId, dia.rotulo, dia.dataCurta, tipo, titulo, preco, vagas, ordem.prox],
-    )
-    res.status(201).json({ ok: true, atividades: await atividadesComVagas() })
-  } catch (err) {
-    next(err)
-  }
-})
-
-admin.delete('/atividades/:id', exigeAdmin, async (req, res, next) => {
-  try {
-    const [atividade] = await q('SELECT id, titulo FROM atividades WHERE id=?', [req.params.id])
-    if (!atividade) throw erro(404, 'Atividade não encontrada.')
-    const [uso] = await q(
-      `SELECT COUNT(*) AS total,
-              SUM(i.status IN ('aguardando_pix','aguardando_gratuidade','pago')) AS ativas
-       FROM inscricao_atividades ia
-       JOIN inscricoes i ON i.id = ia.inscricao_id
-       WHERE ia.atividade_id = ?`,
-      [req.params.id],
-    )
-    const total = Number(uso.total || 0)
-    const ativas = Number(uso.ativas || 0)
-    if (total > 0) {
-      const detalhe = ativas > 0
-        ? `${ativas} ainda em andamento ou confirmada(s)`
-        : 'só canceladas, mas o histórico precisa ser mantido'
-      throw erro(409, `Não dá para apagar "${atividade.titulo}": ${total} inscrição(ões) usam esta atividade (${detalhe}).`)
-    }
-    await q('DELETE FROM atividades WHERE id=?', [req.params.id])
-    res.json({ ok: true, atividades: await atividadesComVagas() })
-  } catch (err) {
-    next(err)
-  }
-})
-
-admin.put('/atividades/:id', exigeAdmin, async (req, res, next) => {
-  try {
-    const preco = Number(req.body.precoExtra)
-    const vagas = req.body.vagas === '' || req.body.vagas == null ? null : Number(req.body.vagas)
-    if (Number.isNaN(preco) || preco < 0) throw erro(400, 'Preço extra inválido.')
-    if (vagas != null && (!Number.isInteger(vagas) || vagas < 0)) throw erro(400, 'Vagas inválidas.')
-    if (vagas != null) {
-      const ocup = await ocupacaoAtividades()
-      const ocupadas = ocup[req.params.id] || 0
-      if (vagas < ocupadas) {
-        throw erro(400, `Já existem ${ocupadas} inscrições nesta atividade. Não dá para reduzir as vagas abaixo disso.`)
-      }
-    }
-    const result = await q('UPDATE atividades SET preco_extra=?, vagas=? WHERE id=?', [preco, vagas, req.params.id])
-    if (!result.affectedRows) throw erro(404, 'Atividade não encontrada.')
-    res.json({ ok: true, atividades: await atividadesComVagas() })
-  } catch (err) {
-    next(err)
-  }
-})
-
 admin.post('/inscritos/:id/gratuidade', exigeAdmin, async (req, res, next) => {
   try {
     const [row] = await q(
-      'SELECT i.id, i.status, i.participante_id FROM inscricoes i WHERE i.id=?',
+      'SELECT i.id, i.status FROM inscricoes i WHERE i.id=?',
       [req.params.id],
     )
     if (!row) throw erro(404, 'Inscrição não encontrada.')
@@ -295,19 +226,11 @@ admin.post('/inscritos/:id/gratuidade', exigeAdmin, async (req, res, next) => {
         `UPDATE inscricoes SET status='pago', valor=0, asaas_payment_id=NULL, pix_payload=NULL, pix_qrcode=NULL WHERE id=?`,
         [row.id],
       )
-      const insc = await montarInscricao(row.participante_id)
-      await enviarComprovante({
-        nome: insc.nome,
-        numero: insc.numero,
-        valor: 0,
-        status: 'pago',
-        atividades: insc.atividades.map((a) => a.titulo),
-        email: insc.email,
-      })
-      res.json(insc)
+      await enviarComprovante(await dadosComprovante(row.id))
+      res.json(await montarInscricao(row.id))
     } else {
       await q('UPDATE inscricoes SET status="aguardando_pix", gratuidade_motivo=NULL WHERE id=?', [row.id])
-      res.json(await gerarPixPara(row.participante_id))
+      res.json(await gerarPixPara(row.id))
     }
   } catch (err) {
     next(err)
@@ -379,6 +302,225 @@ admin.post('/zerar', exigeAdmin, async (_req, res, next) => {
     await q('DELETE FROM inscricoes')
     await q('DELETE FROM participantes')
     res.json({ ok: true })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// --- Incremento 1: cadastro de eventos -------------------------------------
+
+admin.get('/eventos', exigeAdmin, async (_req, res, next) => {
+  try {
+    res.json({ eventos: await listarEventos() })
+  } catch (err) {
+    next(err)
+  }
+})
+
+async function contarInscricoes(eventoId) {
+  const [row] = await q('SELECT COUNT(*) AS total FROM inscricoes WHERE evento_id=?', [eventoId])
+  return Number(row.total)
+}
+
+admin.post('/eventos', exigeAdmin, async (req, res, next) => {
+  try {
+    const e = validarEvento(req.body)
+    await q(
+      `INSERT INTO eventos (nome, chamada, descricao, data_inicio, data_fim, local, tipo, taxa, inscricoes_abertas, publicado)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        e.nome, e.chamada, e.descricao, e.dataInicio, e.dataFim, e.local,
+        e.tipo, e.taxa, e.inscricoesAbertas ? 1 : 0, e.publicado ? 1 : 0,
+      ],
+    )
+    res.status(201).json({ ok: true, eventos: await listarEventos() })
+  } catch (err) {
+    next(err)
+  }
+})
+
+admin.put('/eventos/:id', exigeAdmin, async (req, res, next) => {
+  try {
+    const e = validarEvento(req.body)
+    const atual = await buscarEvento(req.params.id)
+    if (!atual) throw erro(404, 'Evento não encontrado.')
+    if (atual.tipo === 'completo' && e.tipo === 'simples' && (await contarInscricoes(atual.id))) {
+      throw erro(409, 'Este evento já tem inscrições. Ele não pode virar um evento simples.')
+    }
+    // Atividade fora do novo periodo ficaria sem dia na programacao.
+    const [fora] = await q(
+      'SELECT titulo FROM atividades WHERE evento_id=? AND (data < ? OR data > ?) LIMIT 1',
+      [atual.id, e.dataInicio, e.dataFim],
+    )
+    if (fora) throw erro(409, `A atividade "${fora.titulo}" ficaria fora do novo período. Ajuste a data dela antes.`)
+    await q(
+      `UPDATE eventos
+       SET nome=?, chamada=?, descricao=?, data_inicio=?, data_fim=?, local=?, tipo=?, taxa=?, inscricoes_abertas=?, publicado=?
+       WHERE id=?`,
+      [
+        e.nome, e.chamada, e.descricao, e.dataInicio, e.dataFim, e.local,
+        e.tipo, e.taxa, e.inscricoesAbertas ? 1 : 0, e.publicado ? 1 : 0, atual.id,
+      ],
+    )
+    res.json({ ok: true, eventos: await listarEventos() })
+  } catch (err) {
+    next(err)
+  }
+})
+
+admin.delete('/eventos/:id', exigeAdmin, async (req, res, next) => {
+  try {
+    const total = await contarInscricoes(req.params.id)
+    if (total) throw erro(409, `Não dá para apagar: ${total} inscrição(ões) neste evento. Oculte o evento em vez de apagar.`)
+    // As atividades vao junto (ON DELETE CASCADE). As noticias ligadas
+    // ficam sem evento (ON DELETE SET NULL), nao somem.
+    const result = await q('DELETE FROM eventos WHERE id=?', [req.params.id])
+    if (!result.affectedRows) throw erro(404, 'Evento não encontrado.')
+    res.json({ ok: true, eventos: await listarEventos() })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// --- Incremento 3: atividades dentro de um evento completo -----------------
+
+async function eventoCompleto(id) {
+  const evento = await buscarEvento(id)
+  if (!evento) throw erro(404, 'Evento não encontrado.')
+  if (evento.tipo !== 'completo') throw erro(400, 'Só eventos completos têm atividades.')
+  return evento
+}
+
+async function atividadeDoEvento(id) {
+  const [a] = await q('SELECT id, evento_id, titulo FROM atividades WHERE id=?', [id])
+  if (!a) throw erro(404, 'Atividade não encontrada.')
+  return a
+}
+
+admin.get('/eventos/:id/atividades', exigeAdmin, async (req, res, next) => {
+  try {
+    const evento = await eventoCompleto(req.params.id)
+    res.json({ atividades: await atividadesComVagas(evento.id) })
+  } catch (err) {
+    next(err)
+  }
+})
+
+admin.post('/eventos/:id/atividades', exigeAdmin, async (req, res, next) => {
+  try {
+    const evento = await eventoCompleto(req.params.id)
+    const a = validarAtividade(req.body, evento)
+    const [ordem] = await q('SELECT IFNULL(MAX(ordem), 0) + 1 AS prox FROM atividades WHERE evento_id=?', [evento.id])
+    await q(
+      `INSERT INTO atividades (evento_id, data, horario, tipo, titulo, preco_extra, vagas, ordem)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [evento.id, a.data, a.horario, a.tipo, a.titulo, a.precoExtra, a.vagas, ordem.prox],
+    )
+    res.status(201).json({ ok: true, atividades: await atividadesComVagas(evento.id) })
+  } catch (err) {
+    next(err)
+  }
+})
+
+admin.put('/atividades/:id', exigeAdmin, async (req, res, next) => {
+  try {
+    const atual = await atividadeDoEvento(req.params.id)
+    const evento = await buscarEvento(atual.evento_id)
+    const a = validarAtividade(req.body, evento)
+    if (a.vagas != null) {
+      const ocupadas = (await ocupacaoAtividades())[atual.id] || 0
+      if (a.vagas < ocupadas) {
+        throw erro(400, `Já existem ${ocupadas} inscrições nesta atividade. Não dá para reduzir as vagas abaixo disso.`)
+      }
+    }
+    await q(
+      'UPDATE atividades SET data=?, horario=?, tipo=?, titulo=?, preco_extra=?, vagas=? WHERE id=?',
+      [a.data, a.horario, a.tipo, a.titulo, a.precoExtra, a.vagas, atual.id],
+    )
+    res.json({ ok: true, atividades: await atividadesComVagas(evento.id) })
+  } catch (err) {
+    next(err)
+  }
+})
+
+admin.delete('/atividades/:id', exigeAdmin, async (req, res, next) => {
+  try {
+    const atividade = await atividadeDoEvento(req.params.id)
+    const [uso] = await q(
+      `SELECT COUNT(*) AS total,
+              SUM(i.status IN ('aguardando_pix','aguardando_gratuidade','pago')) AS ativas
+       FROM inscricao_atividades ia
+       JOIN inscricoes i ON i.id = ia.inscricao_id
+       WHERE ia.atividade_id = ?`,
+      [atividade.id],
+    )
+    const total = Number(uso.total || 0)
+    const ativas = Number(uso.ativas || 0)
+    if (total > 0) {
+      const detalhe = ativas > 0
+        ? `${ativas} ainda em andamento ou confirmada(s)`
+        : 'só canceladas, mas o histórico precisa ser mantido'
+      throw erro(409, `Não dá para apagar "${atividade.titulo}": ${total} inscrição(ões) usam esta atividade (${detalhe}).`)
+    }
+    await q('DELETE FROM atividades WHERE id=?', [atividade.id])
+    res.json({ ok: true, atividades: await atividadesComVagas(atividade.evento_id) })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// --- Incremento 2: cadastro de noticias ------------------------------------
+
+async function exigeEventoExistente(eventoId) {
+  if (eventoId == null) return
+  const [evento] = await q('SELECT id FROM eventos WHERE id=?', [eventoId])
+  if (!evento) throw erro(400, 'O evento escolhido não existe mais.')
+}
+
+admin.get('/noticias', exigeAdmin, async (_req, res, next) => {
+  try {
+    res.json({ noticias: await listarNoticias() })
+  } catch (err) {
+    next(err)
+  }
+})
+
+admin.post('/noticias', exigeAdmin, async (req, res, next) => {
+  try {
+    const n = validarNoticia(req.body)
+    await exigeEventoExistente(n.eventoId)
+    await q(
+      `INSERT INTO noticias (titulo, resumo, conteudo, evento_id, publicada, publicada_em)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [n.titulo, n.resumo, n.conteudo, n.eventoId, n.publicada ? 1 : 0, n.publicadaEm],
+    )
+    res.status(201).json({ ok: true, noticias: await listarNoticias() })
+  } catch (err) {
+    next(err)
+  }
+})
+
+admin.put('/noticias/:id', exigeAdmin, async (req, res, next) => {
+  try {
+    const n = validarNoticia(req.body)
+    await exigeEventoExistente(n.eventoId)
+    const result = await q(
+      `UPDATE noticias SET titulo=?, resumo=?, conteudo=?, evento_id=?, publicada=?, publicada_em=?
+       WHERE id=?`,
+      [n.titulo, n.resumo, n.conteudo, n.eventoId, n.publicada ? 1 : 0, n.publicadaEm, req.params.id],
+    )
+    if (!result.affectedRows) throw erro(404, 'Notícia não encontrada.')
+    res.json({ ok: true, noticias: await listarNoticias() })
+  } catch (err) {
+    next(err)
+  }
+})
+
+admin.delete('/noticias/:id', exigeAdmin, async (req, res, next) => {
+  try {
+    const result = await q('DELETE FROM noticias WHERE id=?', [req.params.id])
+    if (!result.affectedRows) throw erro(404, 'Notícia não encontrada.')
+    res.json({ ok: true, noticias: await listarNoticias() })
   } catch (err) {
     next(err)
   }

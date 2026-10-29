@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
+ * Le um parametro que vem depois do id da aba no hash.
+ * Ex.: em `#noticias&noticia=12`, parametroHash('noticia') devolve '12'.
+ * E assim que a primeira tela abre uma noticia ou evento especifico.
+ */
+export function parametroHash(nome) {
+  const resto = window.location.hash.replace('#', '').split('&').slice(1).join('&')
+  return new URLSearchParams(resto).get(nome)
+}
+
+/**
  * Controla a navegacao por abas da SPA.
  *
  * Alem de guardar a aba ativa, o hook:

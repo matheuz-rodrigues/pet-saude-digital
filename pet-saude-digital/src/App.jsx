@@ -10,12 +10,9 @@ import MenuAbas from './components/layout/MenuAbas'
 import Rodape from './components/layout/Rodape'
 import BarraInscricao from './components/layout/BarraInscricao'
 
-import Sobre from './components/sections/Sobre'
-import Programacao from './components/sections/Programacao'
-import Palestrantes from './components/sections/Palestrantes'
-import Submissao from './components/sections/Submissao'
-import Local from './components/sections/Local'
-import Apoiadores from './components/sections/Apoiadores'
+import Inicio from './components/sections/Inicio'
+import Eventos from './components/sections/Eventos'
+import Noticias from './components/sections/Noticias'
 import Contato from './components/sections/Contato'
 
 /*
@@ -23,12 +20,9 @@ import Contato from './components/sections/Contato'
  * Fica fora do componente para nao ser recriado a cada render.
  */
 const SECOES = {
-  sobre: Sobre,
-  programacao: Programacao,
-  palestrantes: Palestrantes,
-  submissao: Submissao,
-  local: Local,
-  apoiadores: Apoiadores,
+  inicio: Inicio,
+  eventos: Eventos,
+  noticias: Noticias,
   contato: Contato,
 }
 

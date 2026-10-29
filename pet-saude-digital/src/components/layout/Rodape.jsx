@@ -1,12 +1,12 @@
-import { evento } from '../../data/evento'
+import { programa } from '../../data/programa'
 import Monograma from '../ui/Monograma'
 
 /**
  * Rodape institucional.
  *
  * A logo da UEPA fica aqui, e nao no topo: conforme orientacao do cliente,
- * quando a propria universidade e a promotora do evento, a marca dela assina
- * a peca no rodape em vez de disputar espaco com a marca do evento.
+ * quando a propria universidade e a promotora, a marca dela assina a peca no
+ * rodape em vez de disputar espaco com a marca do programa.
  */
 export default function Rodape() {
   return (
@@ -24,17 +24,16 @@ export default function Rodape() {
           <div className="leading-tight">
             <p className="label text-white/40">Realização</p>
             <p className="mt-1 text-[12.5px] font-semibold tracking-tight sm:text-[13px]">
-              {evento.instituicao}
+              {programa.instituicao}
             </p>
-            <p className="text-[11.5px] text-white/50">PET Saúde Digital · {evento.edicao}</p>
+            <p className="text-[11.5px] text-white/50">{programa.nome}</p>
           </div>
         </div>
 
         <div className="text-[11.5px] leading-relaxed text-white/45 sm:text-right sm:text-[12px]">
           <p className="hidden sm:block">
-            {evento.data} · {evento.horario}
+            {programa.email} · {programa.instagram}
           </p>
-          <p className="hidden sm:block">{evento.local}</p>
           <p className="text-white/30 sm:mt-1">
             Conteúdo fictício — protótipo acadêmico sem vínculo oficial.
           </p>
